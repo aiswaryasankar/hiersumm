@@ -5,6 +5,8 @@ import random
 import torch
 
 from others.logging import logger
+import sentencepiece
+
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -26,8 +28,12 @@ class AbstractiveBatch(object):
         """Create a Batch from a list of examples."""
         if data is not None:
             self.batch_size = len(data)
+            # This should pass in the SentencePiece version instead of just reading in x[0]
+
             src = [x[0] for x in data]
             tgt = [x[1] for x in data]
+
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
             if (hier):
                 max_nblock = max([len(e) for e in src])
@@ -40,11 +46,11 @@ class AbstractiveBatch(object):
                 _src = self._pad(src, width=max([len(d) for d in src]), height=len(src), pad_id=pad_id)
                 src = torch.tensor(_src[0])  # batch_size, src_len
 
-            setattr(self, 'src', src.to(device))
+            setattr(self, 'src', src)
 
             _tgt = self._pad(tgt, width=max([len(d) for d in tgt]), height=len(tgt), pad_id=pad_id)
             tgt = torch.tensor(_tgt[0]).transpose(0, 1)
-            setattr(self, 'tgt', tgt.to(device))
+            setattr(self, 'tgt', tgt)
 
             if (is_test):
                 tgt_str = [x[2] for x in data]
@@ -71,6 +77,8 @@ def load_dataset(args, corpus_type, shuffle):
         dataset = torch.load(pt_file)
         logger.info('Loading %s dataset from %s, number of examples: %d' %
                     (corpus_type, pt_file, len(dataset)))
+
+        print(dataset)
         return dataset
 
     # Sort the glob output by file name (by increasing indexes).
@@ -83,8 +91,19 @@ def load_dataset(args, corpus_type, shuffle):
             yield _lazy_dataset_loader(pt, corpus_type)
     else:
         # Only one inputters.*Dataset, simple!
-        pt = args.data_path + '.' + corpus_type + '.pt'
+        # pt = args.data_path + '.' + corpus_type + '.pt'
+        pt = args.data_path
         yield _lazy_dataset_loader(pt, corpus_type)
+
+def load_dataset_live(dataset):
+
+    def _lazy_dataset_loader(dataset):
+        logger.info('Loading %s dataset, number of examples: %d' %
+                    (dataset, len(dataset)))
+
+        return dataset
+
+    yield _lazy_dataset_loader(dataset)
 
 
 class AbstractiveDataloader(object):
@@ -102,6 +121,8 @@ class AbstractiveDataloader(object):
 
     def __iter__(self):
         dataset_iter = (d for d in self.datasets)
+        print("one dataset_iter")
+        print(dataset_iter)
         while self.cur_iter is not None:
             for batch in self.cur_iter:
                 yield batch

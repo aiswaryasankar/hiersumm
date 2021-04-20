@@ -47,7 +47,7 @@ def get_generator(dec_hidden_size, vocab_size, device):
         nn.Linear(dec_hidden_size, vocab_size),
         gen_func
     )
-    generator.to(device)
+    # generator.to(device)
 
     return generator
 
@@ -102,9 +102,7 @@ class Summarizer(nn.Module):
                 if p.dim() > 1:
                     xavier_uniform_(p)
 
-
-
-        self.to(device)
+        # self.to(device)
 
     def forward(self, src, tgt):
         tgt = tgt[:-1]

@@ -16,9 +16,11 @@ import sentencepiece
 from abstractive.model_builder import Summarizer
 from abstractive.trainer_builder import build_trainer
 from abstractive.predictor_builder import build_predictor
-from abstractive.data_loader import load_dataset
+from abstractive.data_loader import load_dataset, load_dataset_live
 import torch
 import random
+import pandas as pd
+from torch.utils.data import Dataset, DataLoader
 
 from abstractive import data_loader, model_builder
 from others import distributed
@@ -71,8 +73,9 @@ def main(args):
     if (args.mode == 'train'):
         train(args, device_id)
     elif (args.mode == 'test'):
-        step = int(args.test_from.split('.')[-2].split('_')[-1])
+        # step = int(args.test_from.split('.')[-2].split('_')[-1])
         # validate(args, device_id, args.test_from, step)
+        step = 1
         test(args, args.test_from, step)
     elif (args.mode == 'validate'):
         wait_and_validate(args, device_id)
@@ -117,6 +120,7 @@ def train(args,device_id):
     symbols = {'BOS': spm.PieceToId('<S>'), 'EOS': spm.PieceToId('</S>'), 'PAD': word_padding_idx,
                'EOT': spm.PieceToId('<T>'), 'EOP': spm.PieceToId('<P>'), 'EOQ': spm.PieceToId('<Q>')}
     print(symbols)
+
     vocab_size = len(spm)
 
     def train_iter_fct():
@@ -191,6 +195,7 @@ def validate(args, device_id, pt, step):
         test_from = pt
     else:
         test_from = args.test_from
+
     logger.info('Loading checkpoint from %s' % test_from)
     checkpoint = torch.load(test_from, map_location=lambda storage, loc: storage)
 
@@ -209,6 +214,7 @@ def validate(args, device_id, pt, step):
                'EOT': spm.PieceToId('<T>'), 'EOP': spm.PieceToId('<P>'), 'EOQ': spm.PieceToId('<Q>')}
 
     vocab_size = len(spm)
+
     model = Summarizer(args, word_padding_idx, vocab_size, device, checkpoint)
     model.eval()
 
@@ -248,10 +254,28 @@ def test(args, pt, step):
     model = Summarizer(args, word_padding_idx, vocab_size, device, checkpoint)
     model.eval()
 
-    test_iter = data_loader.AbstractiveDataloader(args, load_dataset(args, args.dataset, shuffle=False), symbols,
+    data = ["President-elect Joe Biden criticized the Trump administration Tuesday for the pace of distributing COVID-19 vaccines and predicted that “things will get worse before they get better” when it comes to the pandemic. Biden encouraged Americans to “steel our spines” for challenges to come and predicted that “things are going to get worse before they get better.” Earlier this month, Trump administration officials said they planned to have 20 million doses of the vaccine distributed by the end of the year. At the current pace, Biden said, “it’s gonna take years, not months, to vaccinate the American people.", "The Second Stimulus Answers to Your Questions About the Stimulus Bill Updated Dec 30, 2020 The economic relief package will issue payments of $600 and distribute a federal unemployment benefit of $300 for at least 10 weeks. To receive assistance, households will have to meet several conditions: Household income (for 2020) cannot exceed more than 80 percent of the area median income; at least one household member must be at risk of homelessness or housing instability; and individuals must qualify for unemployment benefits or have experienced financial hardship — directly or indirectly — because of the pandemic. Robert Van Sant’s unemployment benefits of $484 a week don’t cover his monthly expenses of $2,200 in rent, utilities, internet access, food and other necessities.", "The majority leader, who effectively ruled out consideration of the House version stimulus check bill, has sought to couple the stimulus boost with unrelated provisions aimed at placating Trump’s demands to address legal protections for tech companies and his unsubstantiated claims of voter fraud in the 2020 election. McConnell said the House bill on the stimulus checks “has no realistic path to quickly pass the Senate,” even as Trump continues to harangue McConnell and GOP leaders over their refusal to go along with his demands. Sen. John Cornyn (R-Texas) predicted the Senate would follow the House and override Trump’s veto of the defense bill, calling it a matter of “how long people want to extend this out.", "The Second Stimulus Answers to Your Questions About the Stimulus Bill Updated Dec 30, 2020 The economic relief package will issue payments of $600 and distribute a federal unemployment benefit of $300 for at least 10 weeks. To receive assistance, households will have to meet several conditions: Household income (for 2020) cannot exceed more than 80 percent of the area median income; at least one household member must be at risk of homelessness or housing instability; and individuals must qualify for unemployment benefits or have experienced financial hardship — directly or indirectly — because of the pandemic. Robert Van Sant’s unemployment benefits of $484 a week don’t cover his monthly expenses of $2,200 in rent, utilities, internet access, food and other necessities.", "House Armed Services Chair Adam Smith (D-Wash.) told reporters last week that lawmakers’ “only option” if an override fails will be to attempt to pass the same defense agreement after President-elect Joe Biden takes office. Trump has also pushed for lawmakers to use the defense bill to repeal legal protections for social media companies, known as Section 230, but was rebuffed as Republicans and Democrats alike said it fell outside of the Armed Services Committee’s jurisdiction. Both the House and Senate passed a compromise defense bill last week with more than enough votes to overcome a veto, including strong support from Republicans.", "Top officials, including Speaker Nancy Pelosi and Mnuchin, are privately discussing contingency plans such as a stopgap spending bill if Trump does formally veto the measure by Monday, when funding is set to lapse. But it’s not clear how long that stopgap measure would last — or whether Trump would sign it, if it makes none of the changes he’s demanded, such as cuts to foreign aid, according to people familiar with the discussions. “Today, on Christmas Eve morning, House Republicans cruelly deprived the American people of the $2,000 that the President agreed to support,” Pelosi said in a statement.", "McConnell has also expressed concern that the vote could hurt GOP senators facing tough general election fights by alienating moderate voters. According to multiple people familiar with the discussion, the Senate GOP leader also asked Hawley several times to walk through how his objection would play out. The Missouri senator has focused his objections on Pennsylvania, arguing that it and other states failed to adhere to their own election laws. A Toomey spokesperson confirmed the account, saying: “Sen. Toomey made his views on Senator Hawley’s planned objection clear. Hawley instead sent an email to Senate Republicans after the call wrapped.", "President Trump spurned Democrats and Republicans alike on Wednesday as he left Washington defiantly for the holidays, vetoing a major defense bill, imperiling a COVID-19 relief package and setting the stage for a possible government shutdown after Christmas. Mr. Trump vetoed the $740 billion National Defense Authorization Act as promised, citing among his objections that lawmakers didn’t honor his late demand to repeal legal liability protections for big social media companies such as Twitter, Google and Facebook. Senate Armed Services Committee Chairman James Inhofe, Oklahoma Republican, said the president’s valid concerns about Big Tech companies shouldn’t derail the annual defense bill that sets national security priorities."]
+
+    dataset_list = []
+    mds = []
+
+    for article in data:
+        encoded = spm.Encode(article)
+        mds.append(encoded)
+
+    dataset_list = [{"src": mds, "tgt": [], "tgt_str": []}]
+    # df = pd.DataFrame(dataset_list)
+    # dataset = MultiNewsDataset(df)
+    # dataloader = DataLoader(dataset, batch_size=1)
+
+    # load_dataset(args, args.dataset, shuffle=False)
+    test_iter = data_loader.AbstractiveDataloader(args, load_dataset_live(dataset_list), symbols,
                                                   args.valid_batch_size, device, shuffle=False, is_test=True)
+
+    # test_iter = data_loader.AbstractiveDataloader(args, load_dataset(args, args.dataset, shuffle=False), symbols,
+    #                                               args.valid_batch_size, device, shuffle=False, is_test=True)
     predictor = build_predictor(args, vocab, symbols, model, logger=logger)
-    predictor.translate(test_iter, step)
+    predictor.translate(test_iter, step, spm)
 
     # trainer.train(train_iter_fct, valid_iter_fct, FLAGS.train_steps, FLAGS.valid_steps)
 
@@ -321,7 +345,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-log_file', default='', type=str)
     parser.add_argument('-mode', default='train', type=str)
-    parser.add_argument('-visible_gpus', default='-1', type=str)
+    parser.add_argument('-visible_gpus', default='-0', type=str)
     parser.add_argument('-data_path', default='../../data/ranked_abs3_fast_b40/WIKI', type=str)
     parser.add_argument('-model_path', default='../../models', type=str)
     parser.add_argument('-vocab_path', default='../../data/spm9998_3.model', type=str)
@@ -333,7 +357,7 @@ if __name__ == '__main__':
     parser.add_argument('-emb_size', default=256, type=int)
     parser.add_argument('-enc_layers', default=8, type=int)
     parser.add_argument('-dec_layers', default=1, type=int)
-    parser.add_argument('-enc_dropout', default=6, type=float)
+    parser.add_argument('-enc_dropout', default=.2, type=float)
     parser.add_argument('-dec_dropout', default=0, type=float)
     parser.add_argument('-enc_hidden_size', default=256, type=int)
     parser.add_argument('-dec_hidden_size', default=256, type=int)

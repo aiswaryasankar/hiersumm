@@ -44,8 +44,6 @@ class Translator(object):
         self.start_token = symbols['BOS']
         self.end_token = symbols['EOS']
 
-
-
         self.n_best = n_best
         self.max_length = args.max_length
         self.global_scorer = global_scorer
@@ -96,7 +94,8 @@ class Translator(object):
         for b in range(batch_size):
             pred_sents = sum([self._build_target_tokens(preds[b][n])
                 for n in range(self.n_best)],[])
-            gold_sent = tgt_str[b].split()
+            # gold_sent = tgt_str[b].split()
+            gold_sent = []
             if (self.args.hier):
                 raw_src = '<PARA>'.join([self.vocab.DecodeIds(list([int(w) for w in t])) for t in src[b]])
             else:
@@ -110,7 +109,7 @@ class Translator(object):
 
 
     def translate(self,
-                  data_iter,step):
+                  data_iter,step, spm):
 
         self.model.eval()
         gold_path = self.args.result_path + '.%d.gold'%step
@@ -136,6 +135,7 @@ class Translator(object):
                     batch_data = self._fast_translate_batch(
                         batch,
                         self.max_length,
+                        spm=spm,
                         min_length=self.min_length,
                         n_best=self.n_best)
 
@@ -219,6 +219,7 @@ class Translator(object):
     def _fast_translate_batch(self,
                               batch,
                               max_length,
+                              spm,
                               min_length=0,
                               n_best=1):
         # TODO: faster code path for beam_size == 1.
@@ -276,6 +277,7 @@ class Translator(object):
         results["batch"] = batch
 
         for step in range(max_length):
+            print(step)
             decoder_input = alive_seq[:, -1].view(1, -1)
 
             if (self.args.hier):
@@ -318,8 +320,10 @@ class Translator(object):
             select_indices = batch_index.view(-1)
 
             # Append last prediction.
+            select_indices_32 = select_indices.type(torch.int32)
+
             alive_seq = torch.cat(
-                [alive_seq.index_select(0, select_indices),
+                [alive_seq.index_select(0, select_indices_32),
                  topk_ids.view(-1, 1)], -1)
 
             is_finished = topk_ids.eq(self.end_token)
@@ -350,6 +354,9 @@ class Translator(object):
                                 break
                             results["scores"][b].append(score)
                             results["predictions"][b].append(pred)
+                            print(pred)
+                            print(spm.decode(pred.tolist()))
+                print(predictions)
                 non_finished = end_condition.eq(0).nonzero().view(-1)
                 # If all sentences are translated, no need to go further.
                 if len(non_finished) == 0:
@@ -363,11 +370,14 @@ class Translator(object):
 
             # Reorder states.
             select_indices = batch_index.view(-1)
-            src_features = src_features.index_select(1, select_indices)
-            mask_hier = mask_hier.index_select(0, select_indices)
-            dec_states.map_batch_fn(
-                lambda state, dim: state.index_select(dim, select_indices))
+            select_indices_32 = select_indices.type(torch.int32)
 
+            src_features = src_features.index_select(1, select_indices_32)
+            mask_hier = mask_hier.index_select(0, select_indices_32)
+            dec_states.map_batch_fn(
+                lambda state, dim: state.index_select(dim, select_indices_32))
+
+        print(results)
         return results
 
 
