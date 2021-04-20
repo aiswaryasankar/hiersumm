@@ -269,11 +269,11 @@ def test(args, pt, step):
     # dataloader = DataLoader(dataset, batch_size=1)
 
     # load_dataset(args, args.dataset, shuffle=False)
-    test_iter = data_loader.AbstractiveDataloader(args, load_dataset_live(dataset_list), symbols,
-                                                  args.valid_batch_size, device, shuffle=False, is_test=True)
-
-    # test_iter = data_loader.AbstractiveDataloader(args, load_dataset(args, args.dataset, shuffle=False), symbols,
+    # test_iter = data_loader.AbstractiveDataloader(args, load_dataset_live(dataset_list), symbols,
     #                                               args.valid_batch_size, device, shuffle=False, is_test=True)
+
+    test_iter = data_loader.AbstractiveDataloader(args, load_dataset(args, args.dataset, shuffle=False), symbols,
+                                                  args.valid_batch_size, device, shuffle=False, is_test=True)
     predictor = build_predictor(args, vocab, symbols, model, logger=logger)
     predictor.translate(test_iter, step, spm)
 
