@@ -113,6 +113,10 @@ class TransformerDecoderLayer(nn.Module):
                                       type="context")
         output = self.feed_forward(self.drop(mid) + query)
 
+        print("The decoder outputs are")
+        print(output)
+        print("Shape of the decoder output")
+        print(output.shape)
         return output, all_input
         # return output
 

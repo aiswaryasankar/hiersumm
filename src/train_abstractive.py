@@ -25,11 +25,10 @@ from torch.utils.data import Dataset, DataLoader
 from abstractive import data_loader, model_builder
 from others import distributed
 from others.logging import init_logger, logger
+from xlnet import model_evaluator
 
 model_flags = [ 'emb_size', 'enc_hidden_size', 'dec_hidden_size', 'enc_layers', 'dec_layers', 'block_size', 'heads', 'ff_size', 'hier',
                'inter_layers', 'inter_heads', 'block_size']
-
-
 
 
 def str2bool(v):
@@ -98,9 +97,9 @@ def train(args,device_id):
     random.seed(args.seed)
     torch.backends.cudnn.deterministic = True
 
-    if device_id >= 0:
-        torch.cuda.set_device(device_id)
-        torch.cuda.manual_seed(args.seed)
+    # if device_id >= 0:
+    #     torch.cuda.set_device(device_id)
+    #     torch.cuda.manual_seed(args.seed)
 
     if args.train_from != '':
         logger.info('Loading checkpoint from %s' % args.train_from)
@@ -291,11 +290,11 @@ def run(args, device_id, error_queue):
     setattr(args, 'gpu_ranks', [int(i) for i in args.gpu_ranks])
 
     try:
-        gpu_rank = distributed.multi_init(device_id, args.world_size, args.gpu_ranks)
-        print('gpu_rank %d' %gpu_rank)
-        if gpu_rank != args.gpu_ranks[device_id]:
-            raise AssertionError("An error occurred in \
-                  Distributed initialization")
+        # gpu_rank = distributed.multi_init(device_id, args.world_size, args.gpu_ranks)
+        # print('gpu_rank %d' %gpu_rank)
+        # if gpu_rank != args.gpu_ranks[device_id]:
+        #     raise AssertionError("An error occurred in \
+        #           Distributed initialization")
         train(args,device_id)
     except KeyboardInterrupt:
         pass  # killed by parent, do nothing

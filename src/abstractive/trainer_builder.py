@@ -10,6 +10,7 @@ from others import distributed
 from others.logging import logger
 from others.report_manager import ReportMgr
 from others.statistics import Statistics
+from xlnet import model_evaluator
 
 
 def _tally_parameters(model):
@@ -57,19 +58,14 @@ def build_trainer(args, device_id, model, symbols, vocab_size,
 
     tensorboard_log_dir = args.model_path
 
-    writer = SummaryWriter(tensorboard_log_dir, comment="Unmt")
+    # writer = SummaryWriter(tensorboard_log_dir, comment="Unmt")
 
-    # if(gpu_rank==0):
-    #     report_manager = ReportMgr(FLAGS.report_every, start_time=-1, tensorboard_writer=writer)
-    # else:
-    #     report_manager = None
-    report_manager = ReportMgr(args.report_every, start_time=-1, tensorboard_writer=writer)
+    # report_manager = ReportMgr(args.report_every, start_time=-1, tensorboard_writer=writer)
 
     trainer = Trainer(args, model, train_loss, valid_loss, optim,
                       shard_size,
-                      grad_accum_count, n_gpu, gpu_rank, report_manager)
+                      grad_accum_count, n_gpu, gpu_rank)
 
-    # print(tr)
     n_params, enc, dec = _tally_parameters(model)
     logger.info('encoder: %d' % enc)
     logger.info('decoder: %d' % dec)
@@ -204,11 +200,33 @@ class Trainer(object):
 
             src = batch.src
             tgt = batch.tgt
+            print("The batch src dim")
+            print(src.shape())
+            print(src)
+            print("The batch tgt dim")
+            print(tgt.shape())
+            print(tgt)
+
 
             if self.grad_accum_count == 1:
                 self.model.zero_grad()
 
             outputs, _ = self.model(src, tgt)
+            # I would go ahead and first log the dimensions of outputs
+            # Then go ahead and compute the conditional model here as well for src and tgt
+            # Then multiply the outputs
+            # Check if this is done in batches etc and look at the outputs of that analysis
+            print("outputs")
+            print(outputs)
+            print("output shape")
+            print(output.shape())
+
+            # Conditioning model
+            cond_outputs = model_evaluator.predict(src)
+            print("cond_outputs")
+            print(cond_outputs)
+            print("cond_outputs.shape")
+            print(cond_outputs.shape())
 
             # 3. Compute loss in shards for memory efficiency.
             batch_stats = self.train_loss.sharded_compute_loss(

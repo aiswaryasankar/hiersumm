@@ -16,7 +16,7 @@ def build_loss_compute(generator,symbols, vocab_size, device, train=True,label_s
     compute = NMTLossCompute(
         generator, symbols, vocab_size,
         label_smoothing=label_smoothing if train else 0.0)
-    compute.to(device)
+    #compute.to(device)
 
     return compute
 
@@ -190,6 +190,21 @@ class LabelSmoothingLoss(nn.Module):
         return F.kl_div(output, model_prob, reduction='sum')
 
 
+class ConditionalLoss(LossComputeBase):
+    """
+    Conditional NMT Loss Computation.
+    """
+
+    def __init__(self, generator, symbols, vocab_size, label_smoothing=0.0):
+        super(NMTLossCompute, self).__init__(generator, symbols['PAD'])
+        if label_smoothing > 0:
+            self.criterion = LabelSmoothingLoss(label_smoothing, tgt_vocab_size)
+        else:
+            nllLoss = nn.NLLLoss(ignore_index=self.padding_idx, reduction='sum')
+            # conditionalLoss =
+            self.criterion = nllLoss * conditionalLoss
+
+
 class NMTLossCompute(LossComputeBase):
     """
     Standard NMT Loss Computation.
@@ -223,9 +238,16 @@ class NMTLossCompute(LossComputeBase):
             scores = self.generator[0](bottled_output)
         else:
             scores = self.generator(bottled_output)
+            print("The scores computed are ")
+            print(scores)
+            print("Shape of scores")
+            print(scores.shape)
+
         gtruth =target.contiguous().view(-1)
 
         loss = self.criterion(scores, gtruth)
+        print("The loss is")
+        print(loss)
 
         stats = self._stats(loss.clone(), scores, gtruth)
 
